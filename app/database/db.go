@@ -10,14 +10,17 @@ import (
 )
 
 var (
-	DB  *gorm.DB
-	err error
+	DB  *gorm.DB // Armazena a conexão com o banco de dados
+	err error    // Armazena o erro retornado pela função Open
 )
 
+// Função que estabelece a conexão com o banco de dados
 func DataBaseConnection() {
-	stringconnection := "host=postgres user=root password=root dbname=root port=5432 sslmode=disable"
+	stringconnection := "host=postgres user=root password=root dbname=root port=5432 sslmode=disable" // String de conexão com banco de dados
+
+	// Tentar conectar ao banco de dados 10 vezes
 	for i := 0; i < 10; i++ {
-		DB, err = gorm.Open(postgres.Open(stringconnection))
+		DB, err = gorm.Open(postgres.Open(stringconnection)) // Tentativa de conexão com o banco de dados
 		if err == nil {
 			log.Println("Conexão com o banco de dados estabelecida com sucesso!")
 			break
