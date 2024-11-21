@@ -22,10 +22,6 @@ func CreateTask(c *gin.Context) {
 		return
 	}
 
-	if task.Status == "" {
-		task.Status = "not completed"
-	}
-
 	database.DB.Create(&task)
 	c.JSON(http.StatusOK, task)
 }
@@ -106,18 +102,3 @@ func GetPendingTasks(c *gin.Context) {
 
 	c.JSON(http.StatusOK, task)
 }
-
-// func SearchTaskByTitle(c *gin.Context) {
-// 	var task models.Task
-// 	title := c.Param("title")
-
-// 	// Procurar a tarefa com o título passado e armazenar em task
-// 	database.DB.Where(&models.Task{Title: title}).First(&task)
-
-// 	if task.ID == 0 {
-// 		c.JSON(http.StatusNotFound, gin.H{"Not Found": "Tarefa não encontrada"})
-// 		return
-// 	}
-
-// 	c.JSON(http.StatusOK, task)
-// }

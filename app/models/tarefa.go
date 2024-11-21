@@ -8,3 +8,10 @@ type Task struct {
 	Description string `json:"description"`
 	Status      string `json:"status"`
 }
+
+func (task *Task) BeforeCreate(tx *gorm.DB) (err error) {
+	if task.Status == "" {
+		task.Status = "not completed"
+	}
+	return
+}

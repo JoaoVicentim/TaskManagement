@@ -25,6 +25,7 @@ func SetupRouter() *gin.Engine {
 	r.DELETE("/task/:id", controller.DeleteTask)
 	r.PATCH("/task/:id", controller.EditTask)
 	r.PUT("/task/:id/complete", controller.MarkTaskAsCompleted)
+	r.GET("task/pending", controller.GetPendingTasks)
 	return r
 }
 
@@ -158,4 +159,30 @@ func TestMarkTaskAsCompleted(t *testing.T) {
 	assert.NoError(t, err) // Check for JSON unmarshal errors
 
 	assert.Equal(t, "completed", updatedTask.Status)
+}
+
+func TestGetPendingTasks(t *testing.T) {
+	database.DataBaseConnection()
+	CreateTask() // Cria uma tarefa pendente
+	defer DeleteTask()
+
+	router := SetupRouter()
+
+	// Cria uma requisição GET para tarefas pendentes
+	req, _ := http.NewRequest("GET", "/task/pending", nil)
+
+	// Armazena a resposta
+	w := httptest.NewRecorder()
+
+	// Envia a requisição
+	router.ServeHTTP(w, req)
+
+	var taskMock models.Task
+	json.Unmarshal(w.Body.Bytes(), &taskMock)
+
+	// Verifica se o status da resposta é OK
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Verifica se a tarefa criada é pendente
+	assert.Equal(t, "not completed", taskMock.Status)
 }
