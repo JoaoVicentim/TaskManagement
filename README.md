@@ -52,10 +52,10 @@ Insira o seguinte JSON: \
 
 # 3. Buscar uma Tarefa Inexistente
 Função: SearchTask() \
-Descrição: Tenta buscar uma tarefa que não existe (ID 1).
+Descrição: Tenta buscar uma tarefa que não existe (ID 3).
 
 Selecione o método GET. \
-Insira a URL: http://localhost:8080/task/1. 
+Insira a URL: http://localhost:8080/task/3. 
 
 # 4. Buscar a Tarefa Criada
 Função: SearchTask() \
