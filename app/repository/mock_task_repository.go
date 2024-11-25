@@ -27,7 +27,7 @@ func (m *MockTaskRepository) FindAll() ([]models.Task, error) {
 func (m *MockTaskRepository) FindByID(id uint) (*models.Task, error) {
 	task, exists := m.Tasks[id]
 	if !exists {
-		return nil, nil // ou um erro, dependendo da sua lógica
+		return nil, nil
 	}
 	return task, nil
 }
