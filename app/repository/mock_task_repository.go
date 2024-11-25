@@ -1,43 +1,38 @@
 package repository
 
-import (
-	"TaskManagement/app/models"
+import "TaskManagement/app/models"
 
-	"gorm.io/gorm"
-)
-
-type GormTaskRepository struct {
-	DB *gorm.DB
+type MockTaskRepository struct {
+	Tasks map[uint]*models.Task
 }
 
-func NewGormTaskRepository(db *gorm.DB) *GormTaskRepository {
-	return &GormTaskRepository{DB: db}
+func (m *MockTaskRepository) Create(task *models.Task) error {
+	m.Tasks[task.ID] = task
+	return nil
 }
 
-func (r *GormTaskRepository) Create(task *models.Task) error {
-	return r.DB.Create(task).Error
+func (m *MockTaskRepository) Delete(id uint) error {
+	delete(m.Tasks, id)
+	return nil
 }
 
-func (r *GormTaskRepository) FindByID(id uint) (*models.Task, error) {
-	var task models.Task
-	if err := r.DB.First(&task, id).Error; err != nil {
-		return nil, err
-	}
-	return &task, nil
-}
-
-func (r *GormTaskRepository) Delete(id uint) error {
-	return r.DB.Delete(&models.Task{}, id).Error
-}
-
-func (r *GormTaskRepository) Update(task *models.Task) error {
-	return r.DB.Save(task).Error
-}
-
-func (r *GormTaskRepository) FindAll() ([]models.Task, error) {
+func (m *MockTaskRepository) FindAll() ([]models.Task, error) {
 	var tasks []models.Task
-	if err := r.DB.Find(&tasks).Error; err != nil {
-		return nil, err
+	for _, task := range m.Tasks {
+		tasks = append(tasks, *task)
 	}
 	return tasks, nil
+}
+
+func (m *MockTaskRepository) FindByID(id uint) (*models.Task, error) {
+	task, exists := m.Tasks[id]
+	if !exists {
+		return nil, nil // ou um erro, dependendo da sua lógica
+	}
+	return task, nil
+}
+
+func (m *MockTaskRepository) Update(task *models.Task) error {
+	m.Tasks[task.ID] = task
+	return nil
 }

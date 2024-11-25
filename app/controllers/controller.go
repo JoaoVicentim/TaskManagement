@@ -4,168 +4,202 @@ import (
 	"TaskManagement/app/database"
 	"TaskManagement/app/models"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-// Função que retorna todas as tarefas
-func GetTask(c *gin.Context) {
-	var task []models.Task
-	database.DB.Find(&task) // Busca todas as tarefas no banco de dados
-	c.JSON(200, task)       // Retorna todas as tarefas em formato JSON
+// Função que cria uma nova tarefa
+type TaskController struct {
+	Repo database.TaskRepository
 }
 
-// Função que cria uma nova tarefa
-func CreateTask(c *gin.Context) {
-	var task models.Task
-	// Verifica se o JSON é válido e o armazena em task
-	if err := c.ShouldBindJSON(&task); err != nil || task.Title == "" || task.Description == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Título e descrição são obrigatórios"})
+// Função que retorna todas as tarefas
+func (c *TaskController) GetTask(ctx *gin.Context) {
+	tasks, err := c.Repo.FindAll()
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao acessar o banco de dados"})
 		return
 	}
+	ctx.JSON(http.StatusOK, tasks)
+}
 
-	database.DB.Create(&task)   // Cria uma nova tarefa no banco de dados
-	c.JSON(http.StatusOK, task) // Retorna a tarefa criada em formato JSON
+func (c *TaskController) CreateTask(ctx *gin.Context) {
+	var task models.Task
+	if err := ctx.ShouldBindJSON(&task); err != nil || task.Title == "" || task.Description == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Título e descrição são obrigatórios"})
+		return
+	}
+	c.Repo.Create(&task)
+	ctx.JSON(http.StatusOK, task)
 }
 
 // Função que busca uma tarefa pelo ID
-func SearchTask(c *gin.Context) {
-	var task models.Task
-
-	// pegar o ID passado na URL
-	id := c.Params.ByName("id")
+func (c *TaskController) SearchTask(ctx *gin.Context) {
+	idStr := ctx.Params.ByName("id")            // ID como string
+	id, err := strconv.ParseUint(idStr, 10, 32) // Converte para uint
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
+		return
+	}
 
 	// Procurar a tarefa com o ID passado
-	database.DB.First(&task, id)
+	task, err := c.Repo.FindByID(uint(id)) // Passa o ID convertido
+	if err != nil {
+		// Se a tarefa não for encontrada, retorna 404
+		if err == gorm.ErrRecordNotFound {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "Tarefa não encontrada"})
+			return
+		}
 
-	// Verificação se a tarefa foi encontrada
-	if task.ID == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"Not Found": "Tarefa não encontrada"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao acessar o banco de dados"})
 		return
 	}
 
 	// Retorna a tarefa encontrada
-	c.JSON(http.StatusOK, task)
+	ctx.JSON(http.StatusOK, task)
 }
 
 // Função que deleta uma tarefa
-func DeleteTask(c *gin.Context) {
-	var task models.Task
+func (c *TaskController) DeleteTask(ctx *gin.Context) {
+	idStr := ctx.Params.ByName("id")            // ID como string
+	id, err := strconv.ParseUint(idStr, 10, 32) // Converte para uint
 
-	// extrai o ID da recebido
-	id := c.Params.ByName("id")
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
+		return
+	}
 
-	// Tenta encontrar a tarefa pelo ID
-	if err := database.DB.First(&task, id).Error; err != nil {
-		// Se a tarefa não for encontrada, retorna 404
+	// Primeiro, tenta encontrar a tarefa pelo ID
+	if _, err := c.Repo.FindByID(uint(id)); err != nil {
+
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Tarefa não encontrada"})
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "Tarefa não encontrada"})
 			return
+
 		}
-		// Se houver outro erro ao acessar o banco de dados, retorna 500
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao acessar o banco de dados"})
+
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao acessar o banco de dados"})
 		return
 	}
 
-	// Se a tarefa for encontrada, tenta deletá-la
-	if err := database.DB.Delete(&task).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao deletar a tarefa"})
+	// Se a tarefa existir, tenta deletá-la
+	if err := c.Repo.Delete(uint(id)); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao deletar a tarefa"})
 		return
 	}
-
-	// Deleta a tarefa com o ID passado
-	database.DB.Delete(&task, id)
 
 	// Retorna uma mensagem de sucesso
-	c.JSON(http.StatusOK, gin.H{"data": "Tarefa deletada"})
-
+	ctx.JSON(http.StatusOK, gin.H{"data": "Tarefa deletada"})
 }
 
 // Função que edita uma tarefa
-func EditTask(c *gin.Context) {
-	var task models.Task
-
-	// Pegar o ID passado na URL
-	id := c.Params.ByName("id")
+func (c *TaskController) EditTask(ctx *gin.Context) {
+	idStr := ctx.Params.ByName("id")            // ID como string
+	id, err := strconv.ParseUint(idStr, 10, 32) // Converte para uint
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
+		return
+	}
 
 	// Procurar a tarefa com o ID passado
-	if err := database.DB.First(&task, id).Error; err != nil {
+	task, err := c.Repo.FindByID(uint(id)) // Passa o ID convertido
+	// Procurar a tarefa com o ID passado
+	if err != nil {
 		// Se a tarefa não for encontrada, retorna 404
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Tarefa não encontrada"})
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "Tarefa não encontrada"})
 			return
 		}
 
 		// Caso ele entre no if mas não seja um erro de tarefa não encontrada, é um erro ao acessar o db
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao acessar o banco de dados"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao acessar o banco de dados"})
 		return
 	}
 
-	// Variavel com o novo valor da tarefa
+	if task == nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "Tarefa não encontrada"})
+		return
+	}
+
+	// Variável com o novo valor da tarefa
 	var updatedTask models.Task
-	if err := c.ShouldBindJSON(&updatedTask); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos"})
+	if err := ctx.ShouldBindJSON(&updatedTask); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos"})
 		return
 	}
 
 	if updatedTask.Title == "" || updatedTask.Description == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Título e descrição são obrigatórios"})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Título e descrição são obrigatórios"})
 		return
 	}
 
 	// Atualiza a tarefa com os novos dados
-	database.DB.Model(&task).UpdateColumns(updatedTask)
+	task.Title = updatedTask.Title
+	task.Description = updatedTask.Description
+	if err := c.Repo.Update(task); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar a tarefa"})
+		return
+	}
 
 	// Retorna a tarefa atualizada
-	c.JSON(http.StatusOK, task)
-
+	ctx.JSON(http.StatusOK, task)
 }
 
 // Função que marca uma tarefa como concluída
-func MarkTaskAsCompleted(c *gin.Context) {
-	var task models.Task
-
-	// Pegar o ID passado na URL
-	id := c.Params.ByName("id")
+func (c *TaskController) MarkTaskAsCompleted(ctx *gin.Context) {
+	idStr := ctx.Params.ByName("id")            // ID como string
+	id, err := strconv.ParseUint(idStr, 10, 32) // Converte para uint
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
+		return
+	}
 
 	// Procurar a tarefa com o ID passado
-	if err := database.DB.First(&task, id).Error; err != nil {
-		// Se a tarefa não for encontrada, retorna 404
+	task, err := c.Repo.FindByID(uint(id)) // Passa o ID convertido
+	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Tarefa não encontrada"})
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "Tarefa não encontrada"})
 			return
 		}
-		// Caso ele entre no if mas não seja um erro de tarefa não encontrada, é um erro ao acessar o db
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao acessar o banco de dados"})
+
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao acessar o banco de dados"})
 		return
 	}
 
 	if task.Status == "completed" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Tarefa já foi concluída"})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Tarefa já foi concluída"})
 		return
 	}
 
 	// Atualiza o status da tarefa para "completed"
 	task.Status = "completed"
-
-	// Salva a alteração no banco de dados
-	database.DB.Save(&task)
-
-	// Retorna a tarefa atualizada
-	c.JSON(http.StatusOK, task)
-}
-
-// Função que retorna todas as tarefas pendentes
-func GetPendingTasks(c *gin.Context) {
-	var task models.Task
-
-	// Procurar todas as tarefas que não foram completadas
-	if err := database.DB.Where("status = ?", "not completed").Find(&task).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao acessar o banco de dados"})
+	if err := c.Repo.Update(task); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar a tarefa"})
 		return
 	}
 
+	// Retorna a tarefa atualizada
+	ctx.JSON(http.StatusOK, task)
+}
+
+// Função que retorna todas as tarefas pendentes
+func (c *TaskController) GetPendingTasks(ctx *gin.Context) {
+	tasks, err := c.Repo.FindAll() // Busca todas as tarefas
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao acessar o banco de dados"})
+		return
+	}
+
+	// Filtra as tarefas pendentes
+	var pendingTasks []models.Task
+	for _, task := range tasks {
+		if task.Status == "not completed" {
+			pendingTasks = append(pendingTasks, task)
+		}
+	}
+
 	// Retorna as tarefas encontradas
-	c.JSON(http.StatusOK, task)
+	ctx.JSON(http.StatusOK, pendingTasks)
 }

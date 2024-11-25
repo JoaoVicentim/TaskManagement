@@ -9,6 +9,14 @@ import (
 	"gorm.io/gorm"
 )
 
+type TaskRepository interface {
+	Create(task *models.Task) error
+	Delete(id uint) error
+	FindAll() ([]models.Task, error)
+	FindByID(id uint) (*models.Task, error)
+	Update(task *models.Task) error
+}
+
 var (
 	DB  *gorm.DB // Armazena a conexão com o banco de dados
 	err error    // Armazena o erro retornado pela função Open
